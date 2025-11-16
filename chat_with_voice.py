@@ -1,12 +1,11 @@
 """
-Ollama Chat with Cartesia TTS and OpenAI Whisper STT
-Simple voice-enabled chatbot without LiveKit complexity
+Ollama Chat with Cartesia TTS
+Text input with voice output using Cartesia text-to-speech
 """
 
 import ollama
 import os
 import requests
-from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -82,63 +81,16 @@ class CartesiaTTS:
             return None
 
 
-class WhisperSTT:
-    """OpenAI Whisper Speech-to-Text integration"""
-    
-    def __init__(self, api_key: str):
-        self.api_key = api_key
-        self.base_url = "https://api.openai.com/v1/audio/transcriptions"
-    
-    def transcribe(self, audio_file: str) -> str:
-        """
-        Transcribe audio file to text
-        
-        Args:
-            audio_file: Path to audio file
-            
-        Returns:
-            Transcribed text
-        """
-        headers = {
-            "Authorization": f"Bearer {self.api_key}"
-        }
-        
-        try:
-            with open(audio_file, 'rb') as f:
-                files = {
-                    'file': f,
-                    'model': (None, 'whisper-1'),
-                }
-                
-                response = requests.post(
-                    self.base_url,
-                    headers=headers,
-                    files=files
-                )
-                
-                if response.status_code == 200:
-                    return response.json()['text']
-                else:
-                    print(f"Error from Whisper API: {response.status_code}")
-                    print(f"Response: {response.text}")
-                    return ""
-                    
-        except Exception as e:
-            print(f"Error transcribing audio: {str(e)}")
-            return ""
-
-
 class OllamaChatWithVoice:
-    """Ollama chat with voice capabilities"""
+    """Ollama chat with voice output capabilities"""
     
-    def __init__(self, system_prompt, model="llama3.2", enable_tts=True, enable_stt=False):
+    def __init__(self, system_prompt, model="llama3.2", enable_tts=True):
         self.model = model
         self.history = [{
             "role": "system",
             "content": system_prompt
         }]
         self.enable_tts = enable_tts
-        self.enable_stt = enable_stt
         
         # Initialize TTS if enabled
         if self.enable_tts:
@@ -152,16 +104,6 @@ class OllamaChatWithVoice:
             else:
                 print("⚠ CARTESIA_API_KEY not found. TTS disabled.")
                 self.enable_tts = False
-        
-        # Initialize STT if enabled
-        if self.enable_stt:
-            openai_key = os.getenv("OPENAI_API_KEY")
-            if openai_key:
-                self.stt = WhisperSTT(api_key=openai_key)
-                print("✓ OpenAI Whisper STT enabled")
-            else:
-                print("⚠ OPENAI_API_KEY not found. STT disabled.")
-                self.enable_stt = False
 
     def generate_response(self, prompt):
         try:
@@ -225,17 +167,6 @@ class OllamaChatWithVoice:
         except Exception as e:
             print(f"  (Could not auto-play: {e})")
 
-    def transcribe_audio(self, audio_file: str) -> str:
-        """Transcribe audio file to text using Whisper"""
-        if not self.enable_stt:
-            print("STT is not enabled")
-            return ""
-        
-        print(f"🎤 Transcribing {audio_file}...", end="", flush=True)
-        text = self.stt.transcribe(audio_file)
-        print(f" Done")
-        return text
-
     def load_chat_history(self, filename):
         """Load chat history from a text file"""
         try:
@@ -288,8 +219,6 @@ class OllamaChatWithVoice:
         print(f"Chat with {self.model} (type 'quit' to exit)")
         if self.enable_tts:
             print("🔊 Voice output: ENABLED")
-        if self.enable_stt:
-            print("🎤 Voice input: Type 'voice' to transcribe an audio file")
         print("-" * 50)
 
         # Ask user if they want to load previous chat history
@@ -304,20 +233,6 @@ class OllamaChatWithVoice:
             if user_input.lower() == 'quit':
                 print("\nGoodbye!")
                 break
-            
-            # Voice input
-            if user_input.lower() == 'voice' and self.enable_stt:
-                audio_file = input("Enter path to audio file: ").strip()
-                if os.path.exists(audio_file):
-                    transcribed = self.transcribe_audio(audio_file)
-                    if transcribed:
-                        print(f"Transcribed: {transcribed}")
-                        user_input = transcribed
-                    else:
-                        continue
-                else:
-                    print(f"File not found: {audio_file}")
-                    continue
             
             if user_input:
                 self.history.append({"role": "user", "content": user_input})
@@ -341,8 +256,7 @@ def main():
     chat_bot = OllamaChatWithVoice(
         system_prompt=custom_prompt,
         model="llama3.2",
-        enable_tts=True,  # Enable text-to-speech
-        enable_stt=True   # Enable speech-to-text (requires OPENAI_API_KEY)
+        enable_tts=True  # Enable text-to-speech
     )
     chat_bot.chat()
 
